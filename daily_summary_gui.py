@@ -19,7 +19,7 @@ class DailySummaryGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Daily Summary Generator")
-        self.root.geometry("600x500")
+        self.root.geometry("600x700")
         self.root.resizable(True, True)
         
         # Variables

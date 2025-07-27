@@ -36,19 +36,44 @@ def get_quarter_name(quarter_num):
     return quarter_names.get(quarter_num, str(quarter_num))
 
 def find_ytd_sheet(year, quarter_num):
-    """Find the YTD sheet for the given year and quarter"""
+    """Find the YTD sheet for the given year and quarter with new priority flow"""
     quarter_name = get_quarter_name(quarter_num)
     ytd_filename = f"{year} {quarter_name} Quarter YTD.xlsx"
     
-    # Try to find the file using existing find_file_in_locations function
-    ytd_file_path = find_file_in_locations(ytd_filename)
+    # Step 1: Check reports folder first
+    reports_path = os.path.join('reports', ytd_filename)
+    if os.path.exists(reports_path):
+        print(f"✓ Found YTD sheet in reports folder: {reports_path}")
+        return reports_path
     
-    if ytd_file_path:
-        print(f"✓ Found YTD sheet: {ytd_file_path}")
-        return ytd_file_path
-    else:
-        print(f"⚠ YTD sheet not found: {ytd_filename}")
-        return None
+    # Step 2: Not in reports, check N: drive and copy to quarterly sheets if found
+    n_drive_path = os.path.join(rf'N:\Project List\{year} Project List', ytd_filename)
+    if os.path.exists(n_drive_path):
+        print(f"✓ Found YTD sheet on N: drive: {n_drive_path}")
+        
+        # Create quarterly sheets directory if it doesn't exist
+        quarterly_sheets_dir = 'quarterly sheets'
+        os.makedirs(quarterly_sheets_dir, exist_ok=True)
+        
+        # Copy from N: drive to quarterly sheets
+        quarterly_sheets_path = os.path.join(quarterly_sheets_dir, ytd_filename)
+        try:
+            import shutil
+            shutil.copy2(n_drive_path, quarterly_sheets_path)
+            print(f"✓ Copied YTD sheet from N: drive to quarterly sheets: {quarterly_sheets_path}")
+            return quarterly_sheets_path
+        except Exception as e:
+            print(f"✗ Failed to copy YTD sheet from N: drive: {e}")
+            return None
+    
+    # Step 3: Check quarterly sheets as final fallback (in case it was already there)
+    quarterly_sheets_path = os.path.join('quarterly sheets', ytd_filename)
+    if os.path.exists(quarterly_sheets_path):
+        print(f"✓ Found YTD sheet in quarterly sheets folder: {quarterly_sheets_path}")
+        return quarterly_sheets_path
+    
+    print(f"⚠ YTD sheet not found in any location: {ytd_filename}")
+    return None
 
 def update_ytd_sheet_with_daily_table(target_date, daily_invoices_df):
     """Update the quarterly YTD sheet with the daily invoice table"""
@@ -217,11 +242,19 @@ def update_ytd_sheet_with_daily_table(target_date, daily_invoices_df):
         amount_total_cell.number_format = '"$"#,##0.00'
         amount_total_cell.border = regular_border
         print(f"[DEBUG] Wrote total row at {current_row}, total: {daily_total}")
-        # Save with backup
-        backup_file = ytd_file_path.replace('.xlsx', f'_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+        # Save with conditional backup logic
+        # Only create backup if file is NOT in reports folder
+        is_in_reports = os.path.dirname(ytd_file_path).endswith('reports')
+        
         try:
-            wb.save(backup_file)
-            print(f"[INFO] Backup saved: {backup_file}")
+            if not is_in_reports:
+                # Create backup for files in quarterly sheets folder
+                backup_file = ytd_file_path.replace('.xlsx', f'_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+                wb.save(backup_file)
+                print(f"[INFO] Backup saved: {backup_file}")
+            else:
+                print(f"[INFO] File in reports folder - no backup needed")
+            
             wb.save(ytd_file_path)
             print(f"[SUCCESS] YTD sheet updated and saved: {ytd_file_path}")
         except Exception as save_err:
