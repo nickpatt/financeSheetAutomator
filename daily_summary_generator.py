@@ -6,11 +6,6 @@ Generates daily invoicing summaries and updates quarterly YTD tracking.
 
 import pandas as pd
 from datetime import datetime, timedelta
-from docx import Document
-from docx.shared import Pt
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
 import os
 import argparse
 import sys
@@ -513,29 +508,7 @@ def update_quarterly_ytd_file(base_dir, completion_data, quarter_year=2025, quar
         print(f"Error updating quarterly YTD file: {e}")
         return False
 
-def set_table_borders(table):
-    """
-    Add black borders to all cells in a table.
-    """
-    tbl = table._tbl
-    for cell in table._cells:
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        
-        # Remove existing borders first
-        for border_name in ['top', 'left', 'bottom', 'right']:
-            border_element = tcPr.find(qn(f'w:{border_name}'))
-            if border_element is not None:
-                tcPr.remove(border_element)
-        
-        # Add black borders
-        for border_name in ['top', 'left', 'bottom', 'right']:
-            border = OxmlElement(f'w:{border_name}')
-            border.set(qn('w:val'), 'single')
-            border.set(qn('w:sz'), '4')  # Border width
-            border.set(qn('w:space'), '0')
-            border.set(qn('w:color'), '000000')  # Black color
-            tcPr.append(border)
+
 
 def generate_summary(target_date, output_dir, selected_years=None):
     """Generate the daily summary report"""
@@ -782,6 +755,48 @@ def generate_summary(target_date, output_dir, selected_years=None):
         center_align = Alignment(horizontal='center', vertical='center')
         
         current_row = 1
+        
+        # --- ADD SUMMARY SECTION AT TOP ---
+        # Main title
+        summary_title = f"Daily Invoicing Summary - {target_date.strftime('%A, %B %d, %Y')}"
+        title_cell = ws.cell(row=current_row, column=1, value=summary_title)
+        title_cell.font = Font(bold=True, size=16, color="FFFFFF")
+        title_cell.fill = PatternFill(start_color="003366", end_color="003366", fill_type="solid")
+        title_cell.alignment = center_align
+        title_cell.border = regular_border
+        ws.merge_cells(f'A{current_row}:J{current_row}')
+        current_row += 2
+        
+        # Summary data rows
+        summary_data = [
+            (f"Today ({target_date})", f"${today_total:,.2f}"),
+            (f"This Week (since {week_start})", f"${week_total:,.2f}"),
+            (f"This Month (since {month_start})", f"${month_total:,.2f}"),
+            ("Total Payments Received", f"${invoice_total:,.2f}"),
+            ("Total Receivables", f"${total_rec:,.2f}"),
+            ("Vendors to be paid", f"${total_pay:,.2f}"),
+            ("Net Receivables", f"${net_receivables:,.2f}")
+        ]
+        
+        for label, value in summary_data:
+            # Label in column A
+            label_cell = ws.cell(row=current_row, column=1, value=label)
+            label_cell.font = Font(bold=True)
+            label_cell.border = regular_border
+            
+            # Value in column B
+            value_cell = ws.cell(row=current_row, column=2, value=value)
+            value_cell.font = Font(bold=True, color="0000AA")
+            value_cell.border = regular_border
+            
+            # Empty cells for formatting consistency
+            for col in range(3, 11):
+                ws.cell(row=current_row, column=col, value="").border = regular_border
+            
+            current_row += 1
+        
+        # Add spacing after summary
+        current_row += 3
         
         # Table 1: Invoice Details
         daily_inv = invoices[invoices['Invoice Date']==target_date]
@@ -1031,28 +1046,8 @@ def generate_summary(target_date, output_dir, selected_years=None):
             print(f"Error saving Excel file: {e}")
             return False
         
-        # --- 6) Build the Word document using the daily_total from Excel creation ---
-        print("Creating Word document...")
-        print(daily_total)
-        doc = Document()
-        doc.add_heading('Daily Invoicing Summary', level=1)
-        
-        doc.add_paragraph(f"Today ({target_date}): ${today_total:,.2f}")
-        doc.add_paragraph(f"This Week (since {week_start}): ${week_total:,.2f}")
-        doc.add_paragraph(f"This Month (since {month_start}): ${month_total:,.2f}")
-        doc.add_paragraph(f"Total Payments Received: ${invoice_total:,.2f}")
-        doc.add_paragraph(f"Total Receivables: ${total_rec:,.2f}")
-        doc.add_paragraph(f"Vendors to be paid: ${total_pay:,.2f}")
-        doc.add_paragraph(f"Net Receivables: ${net_receivables:,.2f}")
-        
-        # --- 7) Save to .docx ---
-        timestamp = target_date.strftime("%Y%m%d")
-        output_path = os.path.join(output_dir, f'daily_summary_{timestamp}.docx')
-        doc.save(output_path)
-        
         print(f"\n✓ Summary generated successfully!")
-        print(f"  Word Document: {output_path}")
-        print(f"  Excel Tables: {excel_file}")
+        print(f"  Excel File (with summary and tables): {excel_file}")
         if ytd_success:
             quarter_num = get_quarter_from_date(target_date)
             print(f"  YTD Sheet: Updated {target_date.year} Q{quarter_num} Quarter YTD")
