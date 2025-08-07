@@ -1,6 +1,7 @@
 # Daily Summary Generator
 
 A comprehensive tool for generating daily invoicing summaries and updating quarterly YTD tracking sheets. This tool processes Excel files containing project and financial data, and outputs formatted Word and Excel reports with key financial summaries.
+
 **THIS TOOL IS SPECIALIZED FOR SPECIFIC COMPANY FORMATS, AND WILL NOT WORK WITH UNAUTHORIZED SHEETS**
 
 ## Quick Start Guide
